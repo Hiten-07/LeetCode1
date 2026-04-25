@@ -1,0 +1,133 @@
+/*
+You are given an integer side, representing the edge length of a square with corners at (0, 0), (0, side), (side, 0), and (side, side) on a Cartesian plane.
+You are also given a positive integer k and a 2D integer array points, where points[i] = [xi, yi] represents the coordinate of a point lying on the boundary of the square.
+You need to select k elements among points such that the minimum Manhattan distance between any two points is maximized.
+Return the maximum possible minimum Manhattan distance between the selected k points.
+The Manhattan Distance between two cells (xi, yi) and (xj, yj) is |xi - xj| + |yi - yj|.
+
+Example 1:
+Input: side = 2, points = [[0,2],[2,0],[2,2],[0,0]], k = 4
+Output: 2
+Explanation:
+Select all four points.
+
+Example 2:
+Input: side = 2, points = [[0,0],[1,2],[2,0],[2,2],[2,1]], k = 4
+Output: 1
+Explanation:
+Select the points (0, 0), (2, 0), (2, 2), and (2, 1).
+
+Example 3:
+Input: side = 2, points = [[0,0],[0,1],[0,2],[1,2],[2,0],[2,2],[2,1]], k = 5
+Output: 1
+Explanation:
+Select the points (0, 0), (0, 1), (0, 2), (1, 2), and (2, 2).
+
+Constraints:
+1 <= side <= 109
+4 <= points.length <= min(4 * side, 15 * 103)
+points[i] == [xi, yi]
+The input is generated such that:
+points[i] lies on the boundary of the square.
+All points[i] are unique.
+4 <= k <= min(25, points.length)
+*/
+
+
+class Solution {
+public:
+    int maxDistance(int side, vector<vector<int>>& points, int k) {
+        int n = points.size();
+        
+        // Convert each boundary point to a 1D position along the perimeter (CCW)
+        // Bottom: (x,0) -> x
+        // Right:  (side,y) -> side + y
+        // Top:    (x,side) -> 2*side + (side - x)
+        // Left:   (0,y)   -> 3*side + (side - y)
+        auto toPerimeter = [&](int x, int y) -> long long {
+            if (y == 0)    return x;
+            if (x == side) return side + y;
+            if (y == side) return 2LL * side + (side - x);
+            return 3LL * side + (side - y);
+        };
+        
+        // Manhattan distance between two boundary points
+        // On the boundary, Manhattan distance = min(arc, perimeter - arc)
+        long long perimeter = 4LL * side;
+        
+        vector<long long> pos(n);
+        for (int i = 0; i < n; i++)
+            pos[i] = toPerimeter(points[i][0], points[i][1]);
+        sort(pos.begin(), pos.end());
+        
+        // Check if we can place k points with minimum perimeter-distance >= d
+        // Perimeter distance between two points = min(|a-b|, perimeter - |a-b|)
+        // We try each point as the starting point (circular array trick)
+        auto check = [&](long long d) -> bool {
+            // Try starting from each point
+            for (int start = 0; start < n; start++) {
+                long long cur = pos[start];
+                int count = 1;
+                int idx = start;
+                while (count < k) {
+                    // Find next point at perimeter-distance >= d from cur
+                    // Use binary search on the circular array
+                    long long need = cur + d;
+                    // Find first pos >= need in pos[idx+1..n-1] or wrap around
+                    int lo = idx + 1, hi = n - 1, found = -1;
+                    while (lo <= hi) {
+                        int mid = (lo + hi) / 2;
+                        if (pos[mid] >= need) { found = mid; hi = mid - 1; }
+                        else lo = mid + 1;
+                    }
+                    if (found == -1) {
+                        // Wrap around: check from beginning, accounting for circular perimeter
+                        // The "virtual" positions after wrapping = pos[j] + perimeter
+                        long long wrapNeed = need;
+                        int lo2 = 0, hi2 = start - 1, found2 = -1;
+                        // We need pos[j] + perimeter >= wrapNeed
+                        // => pos[j] >= wrapNeed - perimeter
+                        long long realNeed = wrapNeed - perimeter;
+                        while (lo2 <= hi2) {
+                            int mid2 = (lo2 + hi2) / 2;
+                            if (pos[mid2] >= realNeed) { found2 = mid2; hi2 = mid2 - 1; }
+                            else lo2 = mid2 + 1;
+                        }
+                        if (found2 == -1) break; // Can't place next point
+                        // Check that wrapping doesn't close the loop too tightly
+                        // i.e., the last placed point back to start also satisfies >= d
+                        cur = pos[found2] + perimeter; // virtual position
+                        idx = found2; // but we won't go further since we've wrapped
+                        count++;
+                        if (count == k) {
+                            // Check distance from last point back to start[start]
+                            long long distBack = (pos[start] + perimeter) - cur;
+                            if (distBack < d) break;
+                            return true;
+                        }
+                        break; // After wrap we can only go back to start, no further
+                    } else {
+                        cur = pos[found];
+                        idx = found;
+                        count++;
+                    }
+                }
+                if (count == k) {
+                    // Also verify last->first distance
+                    // Covered above for wrap; here all were in-order
+                    long long distBack = (pos[start] + perimeter) - cur;
+                    if (distBack >= d) return true;
+                }
+            }
+            return false;
+        };
+        
+        long long lo = 1, hi = side, ans = 0;
+        while (lo <= hi) {
+            long long mid = (lo + hi) / 2;
+            if (check(mid)) { ans = mid; lo = mid + 1; }
+            else hi = mid - 1;
+        }
+        return (int)ans;
+    }
+};
