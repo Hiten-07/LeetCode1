@@ -24,4 +24,3 @@
 
 * Share patterns and techniques that can help others too.
 
-HpuffoeK
